@@ -1,0 +1,81 @@
+import pygame
+pygame.init()
+font = pygame.font.SysFont(None, 100)
+
+screen = pygame.display.set_mode((768, 900))
+pygame.display.set_caption("Единорог")
+
+running = True
+while running:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+    screen.fill((0, 255, 0))
+    pygame.draw.rect(screen, (0, 255, 255), (0, 0, 768, 420)) 
+    pygame.draw.circle(screen, (255, 221, 85), (727,67), 110) # солнце
+    pygame.draw.rect(screen, (230, 230, 230), (90, 485, 37, 115)) # ствол дерева
+    pygame.draw.ellipse(screen, (0,128,0), (25,150,170,230)) # верзний ветвь дерева
+    pygame.draw.ellipse(screen, (0,128,0), (-20,270,270,150)) # средняя ветвь дерева
+    pygame.draw.ellipse(screen, (0,128,0), (34,380,161,120)) # нижняя ветвь дерева
+    pygame.draw.ellipse(screen, (255,204,170), (119,184,45, 35)) #  ягоды
+    pygame.draw.ellipse(screen, (255,204,170), (-15,329,45, 40))
+    pygame.draw.ellipse(screen, (255,204,170), (190,337,45, 37))
+    pygame.draw.ellipse(screen, (255,204,170), (132,452,43, 43))
+    pygame.draw.ellipse(screen, (255,255,255), (361,611,250, 110)) # белый овал
+    pygame.draw.rect(screen, (255,255,255), (387,689,18, 100)) # нога 1
+    pygame.draw.rect(screen, (255,255,255), (437,708,21, 75)) # нога 2
+    pygame.draw.rect(screen, (255,255,255), (524,698,21, 105)) # нога 3
+    pygame.draw.rect(screen, (255,255,255), (571,693,16,86)) # нога 4
+    pygame.draw.rect(screen, (255,255,255), (524,531,77,130)) # шея
+    pygame.draw.ellipse(screen, (255,255,255), (525,498,94, 40))
+    pygame.draw.circle(screen, (255,255,255), (525,540), 20) 
+    pygame.draw.ellipse(screen, (255,255,255), (556,518,103, 40))
+    pygame.draw.circle(screen, (229, 128, 255), (593,523), 10)
+    pygame.draw.circle(screen, (0, 0, 0), (596,523), 5)
+    pygame.draw.polygon(screen, (233,175,175), [(567,405),(579,498),(559,498)]) 
+    pygame.draw.ellipse(screen, (233,175,175), (537,493,38,23))
+    pygame.draw.ellipse(screen, (233,175,175), (516,502,40,20))
+    pygame.draw.ellipse(screen, (233,198,175), (528,514,43,17))
+    pygame.draw.ellipse(screen, (233,198,175), (501,514,33,30))
+    pygame.draw.ellipse(screen, (255,238,170), (491,534,50,20))
+    pygame.draw.ellipse(screen, (229,255,128), (490,548,45,20))
+    pygame.draw.ellipse(screen, (233,198,175), (514,562,45,20))
+    pygame.draw.ellipse(screen, (255,238,170), (499,566,45,20))
+    pygame.draw.ellipse(screen, (175,233,221), (483,571,45,20))
+    pygame.draw.ellipse(screen, (229,255, 128), (539,580,45,20))
+    pygame.draw.ellipse(screen, (244,215, 227), (517,583,45,20))
+    pygame.draw.ellipse(screen, (175,233, 221), (476,589,45,20))
+    pygame.draw.ellipse(screen, (244,215, 227), (511,601,45,20))
+    pygame.draw.ellipse(screen, (175,233, 221), (544,601,45,20))
+    pygame.draw.ellipse(screen, (221,175, 233), (467,607,45,20))
+    pygame.draw.ellipse(screen, (233,175, 175), (361,635,45,20))
+    pygame.draw.ellipse(screen, (233,198, 175), (352,653,45,20))
+    pygame.draw.ellipse(screen, (255,238, 170), (346,672,45,20))
+    pygame.draw.ellipse(screen, (233,175, 175), (336,661,45,20))
+    pygame.draw.ellipse(screen, (229,255, 128), (328,676,45,20))
+    pygame.draw.ellipse(screen, (233,198, 175), (366,690,45,20))
+    pygame.draw.ellipse(screen, (255,238, 170), (342,695,45,20))
+    pygame.draw.ellipse(screen, (175,233, 221), (326,704,45,20))
+    pygame.draw.ellipse(screen, (175,233, 221), (329,719,45,20))
+    pygame.draw.ellipse(screen, (175,233, 221), (373,714,45,20)) 
+    pygame.draw.ellipse(screen, (244,215, 227), (361,714,45,20))
+    pygame.draw.ellipse(screen, (244,215, 227), (359,732,45,20))
+    pygame.draw.ellipse(screen, (221,175, 233), (313,724,45,20)) 
+    pygame.draw.ellipse(screen, (229,255, 128), (317,747,45,20))
+    pygame.draw.ellipse(screen, (244,215, 227), (349,746,45,20)) 
+    pygame.draw.ellipse(screen, (175,233, 221), (342,753,45,20))
+    pygame.draw.ellipse(screen, (244,215, 227), (350,755,45,20))
+    pygame.draw.ellipse(screen, (175,233, 221), (367,751,45,20)) 
+    pygame.draw.ellipse(screen, (221,175, 233), (377,763,45,20))
+     
+    
+    mx, my = pygame.mouse.get_pos()
+    text = font.render(f"x: {mx}, y: {my}", True, (0, 0, 0))
+    screen.blit(text, (10, 10)) 
+
+    
+    pygame.display.flip()
+    
+
+pygame.quit()
