@@ -1,0 +1,164 @@
+import pygame
+import math
+pygame.init()
+
+screen = pygame.display.set_mode((600, 400))
+pygame.display.set_caption("Бросок в баскетбольное кольцо")
+
+background = pygame.image.load("game.jpg")
+background = pygame.transform.scale(background, (600, 400))
+
+ball_image = pygame.image.load("ball1.jpg").convert()
+ball_image = pygame.transform.scale(ball_image, (40, 40))
+ball_image.set_colorkey((255, 255, 255))
+
+ring_image = pygame.image.load("ring.jpg").convert()
+ring_image = pygame.transform.scale(ring_image, (70, 70))
+ring_image.set_colorkey((255, 255, 255))
+
+pygame.mixer.init()
+pygame.mixer.music.load("play.wav")
+pygame.mixer.music.play(-1) 
+
+pygame.mixer.music.set_volume(0.25)
+score_sound = pygame.mixer.Sound("score.wav")  
+paused = False
+
+
+start_x, start_y = 100, 300
+x, y = start_x, start_y
+radius = 15
+
+vx, vy = 0, 0
+gravity = 0.5
+power = 12
+angle = 45
+bounce_loss = 0.7
+on_ground = True
+
+hoop1_x, hoop1_y = 500, 200
+start_hoop1_x, start_hoop1_y = 500, 200
+hoop2_x, hoop2_y = 350, 200
+start_hoop2_x, start_hoop2_y = 350, 200
+hoop_width, hoop_height = 60, 30
+delta1=4
+delta2=4
+
+
+font = pygame.font.Font(None, 24)
+
+scored_flag = False
+score = 0
+
+running = True
+while running:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_UP:
+                angle = min(angle + 5, 80)
+            elif event.key == pygame.K_DOWN:
+                angle = max(angle - 5, 10)
+            elif event.key == pygame.K_w:
+                power = min(power + 1, 25)
+            elif event.key == pygame.K_s:
+                power = max(power - 1, 5)
+            elif event.key == pygame.K_SPACE and on_ground:
+                rad = math.radians(angle)
+                vx = power * math.cos(rad)
+                vy = -power * math.sin(rad)
+                on_ground = False
+            elif event.key == pygame.K_p:  
+                if paused:
+                    pygame.mixer.music.unpause()
+                    paused = False
+                else:
+                    pygame.mixer.music.pause()
+                    paused = True
+
+
+    if not on_ground and not paused:
+        vy += gravity
+        x += vx
+        y += vy
+
+    if y + radius >= 400:
+        y = 400 - radius
+        vy = -vy * bounce_loss
+        vx *= bounce_loss
+        if abs(vy) < 1 and abs(vx) < 1:
+            x, y = start_x, start_y
+            vx, vy = 0, 0
+            on_ground = True
+            scored_flag = False
+
+    hoop1_rect = pygame.Rect(hoop1_x, hoop1_y, hoop_width, hoop_height)
+    hoop2_rect = pygame.Rect(hoop2_x, hoop2_y, hoop_width, hoop_height)
+    ball_rect = pygame.Rect(x - radius, y - radius, radius * 2, radius * 2)
+
+    if (ball_rect.colliderect(hoop1_rect) or ball_rect.colliderect(hoop2_rect)) and not scored_flag:
+        scored_flag = True
+        score += 1
+        score_sound.play()
+
+    screen.blit(background, (0, 0))
+
+    if on_ground and not paused:
+        points = []
+        rad = math.radians(angle)
+        temp_vx = power * math.cos(rad)
+        temp_vy = -power * math.sin(rad)
+        temp_x, temp_y = start_x, start_y
+        for i in range(60):
+            temp_vy += gravity
+            temp_x += temp_vx
+            temp_y += temp_vy
+            if temp_y + radius >= 400:
+                break
+            points.append((int(temp_x), int(temp_y)))
+        if len(points) > 1:
+            pygame.draw.lines(screen, (0, 0, 0), False, points, 2)
+
+
+
+    if not paused:
+        if not scored_flag:
+            if hoop1_y + hoop_height >= 400 or hoop1_y - hoop_height <=-20:
+                delta1=delta1*(-1)    
+            hoop1_y+=delta1
+        else:
+            hoop1_x, hoop1_y = start_hoop1_x, start_hoop1_y
+    
+        if not scored_flag:
+            if hoop2_y + hoop_height >= 400 or hoop2_y - hoop_height <=-20:
+                delta2=delta2*(-1)    
+            hoop2_y-=delta2
+        else:
+            hoop2_x, hoop2_y = start_hoop2_x, start_hoop2_y
+
+
+
+    screen.blit(ring_image, (hoop1_x, hoop1_y))
+    screen.blit(ring_image, (hoop2_x, hoop2_y))
+
+
+    screen.blit(ball_image, (int(x - radius), int(y - radius)))
+
+    text_angle = font.render(f"Угол: {angle}°", True, (255, 0, 0))
+    text_power = font.render(f"Сила: {power}", True, (255, 0, 0))
+    text_score = font.render(f"Счёт: {score}", True, (255, 0, 0))
+    screen.blit(text_angle, (10, 10))
+    screen.blit(text_power, (10, 30))
+    screen.blit(text_score, (10, 50))
+
+
+    if scored_flag:
+        hit_text = font.render("ПОПАДАНИЕ!", True, (0, 255, 0))
+        screen.blit(hit_text, (250, 50))
+
+    pygame.display.flip()
+    pygame.time.delay(20)
+
+pygame.quit()
