@@ -1,0 +1,664 @@
+import pygame
+import math
+import random
+
+pygame.init()
+
+initial_width, initial_height = 600, 400
+min_width, min_height = 400, 300
+screen = pygame.display.set_mode((initial_width, initial_height), pygame.RESIZABLE)
+pygame.display.set_caption("Марио")
+
+base_width, base_height = 600, 400
+current_width, current_height = initial_width, initial_height
+scale_x = current_width / base_width
+scale_y = current_height / base_height
+
+background_image_original = pygame.image.load("fon.jpg").convert()
+mario_image_original = pygame.image.load("mario.jpg").convert()
+moneta_image_original = pygame.image.load("moneta.jpg").convert()
+grib_image_original = pygame.image.load("grib.jpg").convert()
+
+def scale_image(image, width, height):
+    return pygame.transform.scale(image, (int(width), int(height)))
+
+def init_images():
+    global background_image, mario_image, moneta_image, grib_image
+    global scale_x, scale_y, current_width, current_height
+    
+    background_image = scale_image(background_image_original, current_width, current_height)
+    mario_image = scale_image(mario_image_original, 40 * scale_x, 40 * scale_y)
+    mario_image.set_colorkey((255, 255, 255))
+    
+    moneta_image = scale_image(moneta_image_original, 70 * scale_x, 70 * scale_y)
+    moneta_image.set_colorkey((255, 255, 255))
+    
+    grib_image = scale_image(grib_image_original, 70 * scale_x, 70 * scale_y)
+    grib_image.set_colorkey((255, 255, 255))
+
+init_images()
+
+pygame.mixer.init()
+pygame.mixer.music.load("mariozvuk.mp3")
+pygame.mixer.music.play(-1) 
+pygame.mixer.music.set_volume(0.25)
+score_sound = pygame.mixer.Sound("monetazvuk.mp3")
+shoot_sound = pygame.mixer.Sound("monetazvuk.mp3")
+game_over_sound = pygame.mixer.Sound("zvuk.mp3")
+win_sound = pygame.mixer.Sound("pobeda.mp3")
+
+paused = False
+game_over = False
+game_won = False
+
+background_x = 0
+background_speed = 0
+
+class Mario:
+    def __init__(self):
+        self.screen_x = current_width // 2
+        self.screen_y = current_height * 0.75
+        self.radius = max(15, 20 * min(scale_x, scale_y))
+        self.speed = 3 * scale_x
+        self.vx = 0
+        self.vy = 0
+        self.gravity = 0.5 * scale_y
+        self.bounce_loss = 0.7
+        self.on_ground = True
+        self.angle = 45
+        self.power = 12 * scale_x
+        self.can_shoot = True
+        self.shoot_cooldown = 0
+        self.base_radius = 20
+        
+    def update_scale(self):
+        self.screen_x = current_width // 2
+        self.screen_y = current_height * 0.75
+        self.radius = max(15, self.base_radius * min(scale_x, scale_y))
+        self.speed = 3 * scale_x
+        self.gravity = 0.5 * scale_y
+        self.power = 12 * scale_x
+        
+    def update(self, keys):
+        global background_speed
+        
+        if keys[pygame.K_a]:
+            background_speed = -3 * scale_x
+        elif keys[pygame.K_d]:
+            background_speed = 3 * scale_x
+        else:
+            background_speed = 0
+            
+        if keys[pygame.K_w] and self.on_ground:
+            self.vy = -12 * scale_y
+            self.on_ground = False
+
+        if not self.on_ground:
+            self.vy += self.gravity
+            self.screen_y += self.vy
+            
+        ground_level = current_height - self.radius
+        if self.screen_y >= ground_level:
+            self.screen_y = ground_level
+            self.vy = -self.vy * self.bounce_loss
+            if abs(self.vy) < 1:
+                self.on_ground = True
+                self.vy = 0
+        
+        if self.shoot_cooldown > 0:
+            self.shoot_cooldown -= 1
+            
+    def shoot(self):
+        if self.can_shoot and self.shoot_cooldown == 0:
+            rad = math.radians(self.angle)
+            vx = self.power * math.cos(rad) + background_speed
+            vy = -self.power * math.sin(rad)
+            self.shoot_cooldown = 30
+            world_x = background_x + self.screen_x
+            return Mariosmall(world_x, self.screen_y, vx, vy)
+        return None
+        
+    def draw(self, surface):
+        mario_scaled = scale_image(mario_image_original, 
+                                  max(30, self.radius * 2), 
+                                  max(30, self.radius * 2))
+        mario_scaled.set_colorkey((255, 255, 255))
+        surface.blit(mario_scaled, 
+                    (int(self.screen_x - self.radius), 
+                     int(self.screen_y - self.radius)))
+        
+    def get_rect(self):
+        return pygame.Rect(self.screen_x - self.radius, 
+                          self.screen_y - self.radius, 
+                          self.radius * 2, 
+                          self.radius * 2)
+
+class Mariosmall:
+    def __init__(self, world_x, world_y, vx, vy):
+        self.world_x = world_x
+        self.world_y = world_y
+        self.radius = max(8, 10 * min(scale_x, scale_y))
+        self.base_radius = 10
+        self.vx = vx
+        self.vy = vy
+        self.gravity = 0.5 * scale_y
+        self.bounce_loss = 0.6
+        self.active = True
+        
+    def update_scale(self):
+        self.radius = max(8, self.base_radius * min(scale_x, scale_y))
+        self.gravity = 0.5 * scale_y
+        
+    def update(self):
+        self.vy += self.gravity
+        self.world_x += self.vx
+        self.world_y += self.vy
+        
+        ground_level = current_height - self.radius
+        if self.world_y >= ground_level:
+            self.world_y = ground_level
+            self.vy = -self.vy * self.bounce_loss
+            self.vx *= self.bounce_loss
+            
+        if (abs(self.vy) < 0.5 and abs(self.vx) < 0.5) or \
+           self.world_y > current_height + 100:
+            self.active = False
+            
+    def get_screen_pos(self):
+        screen_x = self.world_x - background_x
+        return screen_x, self.world_y
+        
+    def draw(self, surface):
+        screen_x, screen_y = self.get_screen_pos()
+        if -50 * scale_x < screen_x < current_width + 50 * scale_x:
+            small_mario = scale_image(mario_image_original, 
+                                     max(16, self.radius * 2), 
+                                     max(16, self.radius * 2))
+            small_mario.set_colorkey((255, 255, 255))
+            surface.blit(small_mario, 
+                        (int(screen_x - self.radius), 
+                         int(screen_y - self.radius)))
+        
+    def get_rect(self):
+        screen_x, screen_y = self.get_screen_pos()
+        return pygame.Rect(screen_x - self.radius, 
+                          screen_y - self.radius, 
+                          self.radius * 2, 
+                          self.radius * 2)
+
+class Grib:
+    def __init__(self, world_x, world_y):
+        self.world_x = world_x
+        self.world_y = world_y
+        self.base_width = 40
+        self.base_height = 40
+        self.width = max(30, self.base_width * scale_x)
+        self.height = max(30, self.base_height * scale_y)
+        self.active = True
+        
+        self.speed_x = random.uniform(-1.5, 1.5) * scale_x
+        self.speed_y = random.uniform(-1.0, 1.0) * scale_y
+        self.change_direction_timer = random.randint(60, 180)
+        self.bounce_countdown = random.randint(5, 20)
+        
+    def update_scale(self):
+        self.width = max(30, self.base_width * scale_x)
+        self.height = max(30, self.base_height * scale_y)
+        self.speed_x = self.speed_x / scale_x * scale_x
+        self.speed_y = self.speed_y / scale_y * scale_y
+        
+    def update(self):
+        if self.active:
+            self.change_direction_timer -= 1
+            if self.change_direction_timer <= 0:
+                self.speed_x = random.uniform(-1.5, 1.5) * scale_x
+                self.speed_y = random.uniform(-1.0, 1.0) * scale_y
+                self.change_direction_timer = random.randint(60, 180)
+            
+            self.world_x += self.speed_x
+            self.world_y += self.speed_y
+            
+            if self.world_y <= current_height * 0.5 or self.world_y >= current_height * 0.95:
+                self.speed_y *= -1
+                self.bounce_countdown -= 1
+                
+            if self.bounce_countdown <= 0:
+                self.speed_x *= -1
+                self.bounce_countdown = random.randint(5, 20)
+                
+            if random.random() < 0.02:
+                self.speed_x += random.uniform(-0.2, 0.2) * scale_x
+                self.speed_y += random.uniform(-0.15, 0.15) * scale_y
+                
+            self.speed_x = max(min(self.speed_x, 2.0 * scale_x), -2.0 * scale_x)
+            self.speed_y = max(min(self.speed_y, 1.5 * scale_y), -1.5 * scale_y)
+        
+    def get_screen_pos(self):
+        screen_x = self.world_x - background_x
+        return screen_x, self.world_y
+        
+    def draw(self, surface):
+        if self.active:
+            screen_x, screen_y = self.get_screen_pos()
+            if -50 * scale_x < screen_x < current_width + 50 * scale_x:
+                grib_scaled = scale_image(grib_image_original, self.width, self.height)
+                grib_scaled.set_colorkey((255, 255, 255))
+                surface.blit(grib_scaled, (int(screen_x), int(screen_y)))
+        
+    def get_rect(self):
+        screen_x, screen_y = self.get_screen_pos()
+        return pygame.Rect(screen_x, screen_y, self.width, self.height)
+
+class Moneta:
+    def __init__(self, world_x, world_y):
+        self.world_x = world_x
+        self.world_y = world_y
+        self.base_width = 60
+        self.base_height = 30
+        self.width = max(40, self.base_width * scale_x)
+        self.height = max(20, self.base_height * scale_y)
+        self.scored = False
+        self.collected = False
+        self.reset_timer = 0
+        
+        self.speed_x = random.uniform(-2, 2) * scale_x
+        self.speed_y = random.uniform(-1.5, 1.5) * scale_y
+        self.change_direction_timer = random.randint(30, 90)
+        
+    def update_scale(self):
+        self.width = max(40, self.base_width * scale_x)
+        self.height = max(20, self.base_height * scale_y)
+        self.speed_x = self.speed_x / scale_x * scale_x
+        self.speed_y = self.speed_y / scale_y * scale_y
+        
+    def update(self):
+        if not self.scored and not self.collected:
+            self.change_direction_timer -= 1
+            if self.change_direction_timer <= 0:
+                self.speed_x = random.uniform(-2, 2) * scale_x
+                self.speed_y = random.uniform(-1.5, 1.5) * scale_y
+                self.change_direction_timer = random.randint(30, 90)
+            
+            self.world_x += self.speed_x
+            self.world_y += self.speed_y
+            
+            if self.world_y <= current_height * 0.25 or self.world_y >= current_height * 0.75:
+                self.speed_y *= -1
+                
+        elif self.scored:
+            self.reset_timer -= 1
+            if self.reset_timer <= 0:
+                self.reset_random()
+        
+    def reset_random(self):
+        self.scored = False
+        self.collected = False
+        self.world_x = background_x + current_width + random.randint(200, 500)
+        self.world_y = random.randint(int(current_height * 0.25), int(current_height * 0.75))
+        self.speed_x = random.uniform(-2, 2) * scale_x
+        self.speed_y = random.uniform(-1.5, 1.5) * scale_y
+        self.change_direction_timer = random.randint(30, 90)
+        
+    def hit(self):
+        if not self.scored and not self.collected:
+            self.scored = True
+            self.reset_timer = 120
+            return True
+        return False
+        
+    def collect(self):
+        if not self.collected:
+            self.collected = True
+            self.scored = True
+            return True
+        return False
+        
+    def get_screen_pos(self):
+        screen_x = self.world_x - background_x
+        return screen_x, self.world_y
+        
+    def draw(self, surface):
+        if not self.collected:
+            screen_x, screen_y = self.get_screen_pos()
+            if -100 * scale_x < screen_x < current_width + 100 * scale_x:
+                moneta_scaled = scale_image(moneta_image_original, self.width, self.height)
+                moneta_scaled.set_colorkey((255, 255, 255))
+                surface.blit(moneta_scaled, (int(screen_x), int(screen_y)))
+        
+    def get_rect(self):
+        screen_x, screen_y = self.get_screen_pos()
+        return pygame.Rect(screen_x, screen_y, self.width, self.height)
+
+player = Mario()
+
+monetas = []
+for i in range(5):
+    world_x = background_x + current_width + random.randint(200, 800)
+    world_y = random.randint(int(current_height * 0.25), int(current_height * 0.75))
+    monetas.append(Moneta(world_x, world_y))
+
+gribs = []
+for i in range(10):
+    world_x = background_x + random.randint(300, 2000)
+    world_y = random.randint(int(current_height * 0.5), int(current_height * 0.95))
+    gribs.append(Grib(world_x, world_y))
+
+projectiles = []
+
+font = pygame.font.Font(None, 24)
+score = 0
+monetas_collected = 0
+monetas_to_win = 5
+
+running = True
+clock = pygame.time.Clock()
+
+def update_scale():
+    global scale_x, scale_y, current_width, current_height
+    
+    if current_width < min_width:
+        current_width = min_width
+    if current_height < min_height:
+        current_height = min_height
+        pygame.display.set_mode((current_width, current_height), pygame.RESIZABLE)
+    
+    current_width, current_height = screen.get_size()
+    if current_width < min_width:
+        current_width = min_width
+    if current_height < min_height:
+        current_height = min_height
+    
+    scale_x = current_width / base_width
+    scale_y = current_height / base_height
+    
+    init_images()
+    
+    player.update_scale()
+    
+    for moneta in monetas:
+        moneta.update_scale()
+        
+    for grib in gribs:
+        grib.update_scale()
+        
+    for projectile in projectiles:
+        projectile.update_scale()
+
+def reset_game():
+    global player, monetas, gribs, projectiles, background_x, background_speed, score, monetas_collected, game_over, game_won
+    player = Mario()
+    monetas = []
+    for i in range(5):
+        world_x = background_x + current_width + random.randint(200, 800)
+        world_y = random.randint(int(current_height * 0.25), int(current_height * 0.75))
+        monetas.append(Moneta(world_x, world_y))
+    
+    gribs = []
+    for i in range(10):
+        world_x = background_x + random.randint(300, 2000)
+        world_y = random.randint(int(current_height * 0.5), int(current_height * 0.95))
+        gribs.append(Grib(world_x, world_y))
+    
+    projectiles = []
+    background_x = 0
+    background_speed = 0
+    score = 0
+    monetas_collected = 0
+    game_over = False
+    game_won = False
+    pygame.mixer.music.play(-1)
+
+def check_win_condition():
+    global game_won
+    if monetas_collected >= monetas_to_win and not game_won:
+        game_won = True
+        win_sound.play()
+        pygame.mixer.music.stop()
+
+while running:
+    dt = clock.tick(60) / 1000.0
+    
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+            
+        elif event.type == pygame.VIDEORESIZE:
+            width, height = event.w, event.h
+            if width < min_width:
+                width = min_width
+            if height < min_height:
+                height = min_height
+            
+            screen = pygame.display.set_mode((width, height), pygame.RESIZABLE)
+            update_scale()
+            
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_UP:
+                player.angle = min(player.angle + 5, 80)
+            
+            elif event.key == pygame.K_DOWN:
+                player.angle = max(player.angle - 5, 10)
+                
+            elif event.key == pygame.K_RIGHT:
+                player.power = min(player.power + 1 * scale_x, 25 * scale_x)
+                
+            elif event.key == pygame.K_LEFT:
+                player.power = max(player.power - 1 * scale_x, 5 * scale_x)
+                
+            elif event.key == pygame.K_SPACE and not game_over and not game_won:
+                new_projectile = player.shoot()
+                if new_projectile:
+                    projectiles.append(new_projectile)
+                    shoot_sound.play()
+                    
+            elif event.key == pygame.K_p:  
+                if paused:
+                    pygame.mixer.music.unpause()
+                    paused = False
+                else:
+                    pygame.mixer.music.pause()
+                    paused = True
+                    
+            elif event.key == pygame.K_r:
+                reset_game()
+                
+        elif event.type == pygame.KEYUP:
+            if event.key in (pygame.K_a, pygame.K_d):
+                background_speed = 0
+    
+    if not paused and not game_over and not game_won:
+        keys = pygame.key.get_pressed()
+        player.update(keys)
+        
+        background_x += background_speed
+        
+        for projectile in projectiles[:]:
+            projectile.update()
+            if not projectile.active:
+                projectiles.remove(projectile)
+                
+        for moneta in monetas:
+            moneta.update()
+            
+            if moneta.world_x < background_x - 200 * scale_x and not moneta.collected:
+                moneta.reset_random()
+                
+        for grib in gribs:
+            grib.update()
+            
+            if grib.world_x < background_x - 200 * scale_x:
+                grib.world_x = background_x + current_width + random.randint(200, 800)
+                grib.world_y = random.randint(int(current_height * 0.5), int(current_height * 0.95))
+                grib.speed_x = random.uniform(-1.5, 1.5) * scale_x
+                grib.speed_y = random.uniform(-1.0, 1.0) * scale_y
+                grib.change_direction_timer = random.randint(60, 180)
+                
+        for projectile in projectiles[:]:
+            for moneta in monetas:
+                if projectile.get_rect().colliderect(moneta.get_rect()):
+                    if moneta.hit():
+                        if moneta.collect():
+                            monetas_collected += 1
+                            score += 1
+                            score_sound.play()
+                            check_win_condition()
+            
+            for grib in gribs:
+                if grib.active and projectile.get_rect().colliderect(grib.get_rect()):
+                    game_over = True
+                    pygame.mixer.music.stop()
+                    game_over_sound.play()
+                    grib.active = False
+        
+        for grib in gribs:
+            if grib.active and player.get_rect().colliderect(grib.get_rect()):
+                game_over = True
+                pygame.mixer.music.stop()
+                game_over_sound.play()
+                grib.active = False
+        
+        for moneta in monetas:
+            if not moneta.collected and player.get_rect().colliderect(moneta.get_rect()):
+                if moneta.collect():
+                    monetas_collected += 1
+                    score += 1
+                    score_sound.play()
+                    check_win_condition()
+    
+    bg_x = -background_x % current_width
+    screen.blit(background_image, (bg_x, 0))
+    screen.blit(background_image, (bg_x - current_width, 0))
+
+    if player.on_ground and not paused and not game_over and not game_won:
+        points = []
+        rad = math.radians(player.angle)
+        temp_vx = player.power * math.cos(rad) + background_speed
+        temp_vy = -player.power * math.sin(rad)
+        temp_world_x = background_x + player.screen_x
+        temp_screen_y = player.screen_y
+        
+        for i in range(60):
+            temp_vy += player.gravity
+            temp_world_x += temp_vx
+            temp_screen_y += temp_vy
+            
+            ground_level = current_height - player.radius
+            if temp_screen_y >= ground_level:
+                break
+                
+            temp_screen_x = temp_world_x - background_x
+            if 0 <= temp_screen_x <= current_width:
+                points.append((int(temp_screen_x), int(temp_screen_y)))
+            
+        if len(points) > 1:
+            pygame.draw.lines(screen, (255, 255, 255), False, points, 2)
+    
+    for grib in gribs:
+        grib.draw(screen)
+    
+    for moneta in monetas:
+        moneta.draw(screen)
+    
+    for projectile in projectiles:
+        projectile.draw(screen)
+    
+    player.draw(screen)
+
+    font_size = max(16, int(20 * min(scale_x, scale_y, 1.5)))
+    font = pygame.font.Font(None, font_size)
+    
+    text_angle = font.render(f"Угол: {player.angle}°", True, (255, 0, 0))
+    text_power = font.render(f"Сила: {int(player.power / scale_x)}", True, (255, 0, 0))
+    text_score = font.render(f"Очки: {score}", True, (255, 0, 0))
+    text_rings = font.render(f"Монеты: {monetas_collected}/{monetas_to_win}", True, (0, 200, 255))
+    
+    margin_x = max(10, 10 * scale_x)
+    margin_y = max(10, 10 * scale_y)
+    line_height = max(20, 20 * scale_y)
+    
+    screen.blit(text_angle, (margin_x, margin_y))
+    screen.blit(text_power, (margin_x, margin_y + line_height))
+    screen.blit(text_score, (margin_x, margin_y + 2 * line_height))
+    screen.blit(text_rings, (margin_x, margin_y + 3 * line_height))
+    
+    progress_width = max(150, 200 * min(scale_x, 1.5))
+    progress_height = max(15, 20 * min(scale_y, 1.5))
+    progress_x = current_width - progress_width - margin_x
+    progress_y = margin_y + line_height * 2
+    
+    pygame.draw.rect(screen, (100, 100, 100), 
+                    (progress_x, progress_y, progress_width, progress_height))
+    
+    monetas_progress = min(monetas_collected / monetas_to_win, 1.0)
+    fill_color = (0, 200, 255) if monetas_progress < 1.0 else (0, 255, 0)
+    pygame.draw.rect(screen, fill_color, 
+                    (progress_x, progress_y, int(progress_width * monetas_progress), progress_height))
+    
+    pygame.draw.rect(screen, (255, 255, 255), 
+                    (progress_x, progress_y, progress_width, progress_height), 2)
+    
+    progress_text = font.render("Прогресс:", True, (0, 200, 255))
+    screen.blit(progress_text, (progress_x, margin_y + line_height))
+    
+    if game_won:
+        win_font_size = max(28, int(36 * min(scale_x, scale_y, 1.2)))
+        win_font = pygame.font.Font(None, win_font_size)
+        
+        win_text_lines = [
+            "ПОБЕДА! Вы собрали 5 колец!",
+            "Нажмите R для рестарта"
+        ]
+        
+        outline_offset = 2
+        
+        for i, line in enumerate(win_text_lines):
+            for dx, dy in [(-outline_offset, 0), (outline_offset, 0), (0, -outline_offset), (0, outline_offset)]:
+                outline_text = win_font.render(line, True, (255, 255, 255))
+                outline_rect = outline_text.get_rect(center=(current_width//2 + dx, 
+                                                           current_height//2 - win_font_size//2 + i * win_font_size * 1.5 + dy))
+                screen.blit(outline_text, outline_rect)
+            
+            win_text = win_font.render(line, True, (0, 255, 0))
+            text_rect = win_text.get_rect(center=(current_width//2, 
+                                                current_height//2 - win_font_size//2 + i * win_font_size * 1.5))
+            screen.blit(win_text, text_rect)
+        
+        if pygame.time.get_ticks() % 1000 < 500:
+            for i, line in enumerate(win_text_lines):
+                for dx, dy in [(-outline_offset, 0), (outline_offset, 0), (0, -outline_offset), (0, outline_offset)]:
+                    outline_text = win_font.render(line, True, (255, 255, 255))
+                    outline_rect = outline_text.get_rect(center=(current_width//2 + dx, 
+                                                               current_height//2 - win_font_size//2 + i * win_font_size * 1.5 + dy))
+                    screen.blit(outline_text, outline_rect)
+                
+                win_text2 = win_font.render(line, True, (255, 255, 0))
+                text_rect = win_text2.get_rect(center=(current_width//2, 
+                                                     current_height//2 - win_font_size//2 + i * win_font_size * 1.5))
+                screen.blit(win_text2, text_rect)
+    
+    if game_over:
+        game_over_font_size = max(28, int(36 * min(scale_x, scale_y, 1.2)))
+        game_over_font = pygame.font.Font(None, game_over_font_size)
+        
+        game_over_text_lines = [
+            "ПОРАЖЕНИЕ! Вы попали в гриб!",
+            "Нажмите R для рестарта"
+        ]
+        
+        outline_offset = 2
+        
+        for i, line in enumerate(game_over_text_lines):
+            for dx, dy in [(-outline_offset, 0), (outline_offset, 0), (0, -outline_offset), (0, outline_offset)]:
+                outline_text = game_over_font.render(line, True, (255, 255, 255))
+                outline_rect = outline_text.get_rect(center=(current_width//2 + dx, 
+                                                           current_height//2 - game_over_font_size//2 + i * game_over_font_size * 1.5 + dy))
+                screen.blit(outline_text, outline_rect)
+            
+            game_over_text = game_over_font.render(line, True, (255, 0, 0))
+            text_rect = game_over_text.get_rect(center=(current_width//2, 
+                                                      current_height//2 - game_over_font_size//2 + i * game_over_font_size * 1.5))
+            screen.blit(game_over_text, text_rect)
+    
+    pygame.display.flip()
+
+pygame.quit()
